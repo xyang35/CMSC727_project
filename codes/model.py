@@ -65,7 +65,7 @@ class RNN(object):
 
 
     # train model
-    def train(self, train_feat=None, train_mask=None, 
+    def train(self, train_feat=None, train_mask=None, train_target=None,
             init_epoch=0, lr=10e-5, batch_size=32, max_epoch=10, optimizer=rmsprop, path=None):
 
         self.lr = lr
@@ -135,7 +135,8 @@ class RNN(object):
 
             cost = 0
             count = 0
-            for inputs, encode_m, targets in iterate_minibatches(inputs=train_feat, mask=train_mask, batchsize=batch_size, shuffle=True):
+            for inputs, encode_m, targets in iterate_minibatches(inputs=train_feat, mask=train_mask, targets=train_target, 
+                batchsize=batch_size, shuffle=True):
 
                 cost += train_model(inputs, encode_m, targets)
                 count += 1
