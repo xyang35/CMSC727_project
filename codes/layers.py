@@ -50,7 +50,7 @@ class RNNLayer(object):
                 sequences = [self.input, self.mask],
                 outputs_info = [self.h0])
 
-        self.feat = self.h1[-1]
+        self.feat = self.h[-1]
 
 
 class LeastSquareLayer(object):
@@ -72,7 +72,7 @@ class LeastSquareLayer(object):
         self.loss = T.mean(0.5 * (self.pred - self.y) ** 2)
  
 
- class SoftmaxLayer(object):
+class SoftmaxLayer(object):
     def __init__(self, input = None, y = None, lambda_l2=0,
             n_input=128, n_output=0):
 
@@ -90,7 +90,7 @@ class LeastSquareLayer(object):
         self.reg = 0.5 * (self.W_hy ** 2).sum()
 
 
-        self.pred = T,nnet.softmax(T.dot(input, self.W_hy) + self.b_y)
+        self.pred = T.nnet.softmax(T.dot(input, self.W_hy) + self.b_y)
         self.loss = T.mean(T.nnet.categorical_crossentropy(self.pred, self.y))
 
         self.cost = self.loss + self.lambda_l2 * self.reg      
