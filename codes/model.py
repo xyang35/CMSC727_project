@@ -73,7 +73,7 @@ class RNN(object):
     # Set training policy
     def set_train(self, lr=10e-5, batch_size=32, optimizer=rmsprop):
 
-        self.lr = lr
+        self.lr = theano.shared(value=np.asarray(lr, dtype=theano.config.floatX), name='lr')
         self.batch_size = batch_size
         self.optimizer = optimizer
 
@@ -84,7 +84,7 @@ class RNN(object):
 
         h0 = np.zeros((batch_size,self.n_hidden), dtype=theano.config.floatX)
 
-        updates = optimizer(self.loss, self.params, lr=lr)
+        updates = optimizer(self.loss, self.params, self.lr)
 
         self.train = theano.function(inputs=[input, encode_mask, y],
                 outputs = self.loss,
@@ -99,23 +99,10 @@ class RNN(object):
 
     # train model (load all data)
     def train_all(self, train_feat=None, train_mask=None, train_target=None,
+            val_feat=None, val_mask=None, val_target=None,
             init_epoch=0, max_epoch=10, path=None):
 
         print('Training model ...')
-
-#        check_model = theano.function(inputs=[input1, input2, encode_mask, y1, y2, decode_mask],
-#                outputs = [self.ls1.loss, self.ls1.y_pred, self.ls2.y_pred],
-#                givens = {self.input1: input1,
-#                    self.input2: input2,
-#                    self.encode_mask: encode_mask,
-#                    self.y1: y1,
-#                    self.y2: y2,
-#                    self.decode_mask: decode_mask,
-#                    self.encoder1_1.h0: h0, self.encoder1_2.h0: h0,
-#                    self.encoder2.h0: h0,
-#                    self.decoder2_1.h0: h0, self.decoder2_2.h0: h0},
-#                mode = mode)
-
 
         ##################
         # Start Training #
@@ -132,14 +119,16 @@ class RNN(object):
                 else:
                     excerpt = slice(start_idx, start_idx + batchsize)
 
-                yield inputs[:, excerpt, :], mask[:, excerpt], targets[excerpt]
+                yield inputs[:, excerpt], mask[:, excerpt], targets[excerpt]
 
-        record = np.Inf
-        patience = 10
+        old = np.Inf
+        old_val = np.Inf
+        init_patience = 10
+        patience = init_patience
         neg_count = 0
 
-        for epoch in range(init_epoch, max_epoch):
 
+        for epoch in range(init_epoch, max_epoch):
 
             if (epoch+1) % 50 == 0:    # snapshot of the model
                 if path is not None:
@@ -148,55 +137,47 @@ class RNN(object):
             cost = 0
             count = 0
             for inputs, encode_m, targets in iterate_minibatches(inputs=train_feat, mask=train_mask, targets=train_target, 
-                batchsize=batch_size, shuffle=True):
+                batchsize=self.batch_size, shuffle=True):
 
                 cost += self.train(inputs, encode_m, targets)
                 count += 1
             cost /= count
+
+            if epoch == 0:
+                init_cost = cost
         
-            diff = record - cost
-            record = cost
+            diff = old - cost
+            old = cost
             print("Epoch {} train cost = {}, diff = {}".format(
                 epoch, cost, diff), file=sys.stderr)
 
-            #r = check_model(inputs1, inputs2, encode_m, targets1, targets2, decode_m)
-            #pdb.set_trace()
+            if abs(diff) < abs(init_cost) * 1e-6:
+                print ("Stop for convergence!", file=sys.stderr)
+                break
 
-            # # stopping for convergence
-            # if diff < abs(cost) / 10000.:
-            #     if patience <= 0:
-            #         print("Stop for convergence!", file=sys.stderr)
-            #         break
-            #     else:
-            #         patience -= 1
-            # else:
-            #     patience = min(10, patience+5)
-    
+            if val_feat is not None:
 
-            # # decrease learning rate if diff < 0
-            # if diff < 0:
-            #     neg_count += 1
-            #     patience -= 3
+                val_cost = self.eval_batch(val_feat, val_mask, val_target)
 
-            #     if neg_count == 2:
-            #         lr = lr / 2.
-            #         neg_count = 0
+                val_diff = old_val - val_cost
+                print("Epoch {} validation cost = {}, diff = {}".format(
+                    epoch, val_cost, val_diff), file=sys.stderr)
 
-            #     else:
-            #         lr = max(lr, self.lr / (2**(epoch / 100)))
-            #     print ("learning rate = {}".format(lr), file=sys.stderr)
+                if val_diff < 0:
+                    patience -= 1
+                else:
+                    patience = min(init_patience, patience + 3)
 
-            #     updates = optimizer(self.loss, self.params, lr=lr)
+                if patience == 0:
+                    print ("Early stopping", file=sys.stderr)
+                    break
+                
+                old_val = val_cost
 
-            #     train = theano.function(inputs=[input, encode_mask, y, decode_mask],
-            #             outputs = self.loss,
-            #             updates = updates,
-            #             givens = {self.input: input,
-            #                 self.encode_mask: encode_mask,
-            #                 self.y: y,
-            #                 self.decode_mask: decode_mask,
-            #                 self.encoder.h0: h0},
-            #             mode = mode)
+            # decrease learning rate if diff < 0
+            if diff < 0:
+                self.lr.set_value(self.lr.get_value() / 10)
+                print ("Update learning rate = {}".format(self.lr.get_value()), file=sys.stderr)
 
     # Train model (for one batch)
     def train_batch(self, train_feat=None, train_mask=None, train_target=None):
@@ -253,7 +234,7 @@ class RNN(object):
 
             h0_val = np.zeros((e-s,self.n_hidden), dtype=theano.config.floatX)
             temp_pred = self.predict(
-                    feat[:,s:e,:], mask[:,s:e], h0_val)
+                    feat[:,s:e], mask[:,s:e], h0_val)
 
             pred[s:e] = temp_pred
 

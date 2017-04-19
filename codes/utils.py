@@ -96,7 +96,7 @@ def cca_loss(y1, y2, lamda=0.1):
     return -T.sum(corr) + lamda*(l11+l22)
 
 
-def rmsprop(cost, params, lr=0.01, rho=0.9, epsilon=1e-6, clip_flag=True, finetune=False):
+def rmsprop(cost, params, lr, rho=0.9, epsilon=1e-6, clip_flag=True, finetune=False):
     ''' RMSProp updates
 
         finetune: for supervised training initialized by unsupervised learning
@@ -120,15 +120,15 @@ def rmsprop(cost, params, lr=0.01, rho=0.9, epsilon=1e-6, clip_flag=True, finetu
 
         if finetune and count <= len(params)-2:
             # for finetuning
-            updates[param] = param - (0.01*lr * grad / T.sqrt(accu_new + epsilon))
+            updates[param] = param - (0.01*lr.get_value() * grad / T.sqrt(accu_new + epsilon))
         else:
-            updates[param] = param - (lr * grad / T.sqrt(accu_new + epsilon))
+            updates[param] = param - (lr.get_value() * grad / T.sqrt(accu_new + epsilon))
 
         # set the learning rate of attention parameters to be small
         if param.name[0] == 'A':
             #print param.name
 
-            updates[param] = param - (0.1*lr * grad / T.sqrt(accu_new + epsilon))
+            updates[param] = param - (0.1*lr.get_value() * grad / T.sqrt(accu_new + epsilon))
 
     return updates
 
@@ -379,8 +379,8 @@ def prepare_data(data, label, SEQ_LEN):
     
             count += 1
     
-    x = x[:count]
-    mask = mask[:count]
+    x = x[:, :count]
+    mask = mask[:, :count]
     y = y[:count]
 
     x = x.astype('int32')
