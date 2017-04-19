@@ -19,6 +19,7 @@ N_INPUT = 10000
 N_EMBED = 512
 N_HIDDEN = 10
 N_OUTPUT = 2
+CELL = 'gru'
 
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 23
@@ -43,7 +44,7 @@ if USE_VAL:
 ################### Training  ####################
 
 # Initial and the model
-model = RNN(n_input=N_INPUT, n_embed=N_EMBED, n_hidden=N_HIDDEN, n_output=N_OUTPUT, seq_len=SEQ_LEN, cell_type='rnn')
+model = RNN(n_input=N_INPUT, n_embed=N_EMBED, n_hidden=N_HIDDEN, n_output=N_OUTPUT, seq_len=SEQ_LEN, cell_type=CELL)
 
 model.set_train(lr = LEARNING_RATE, batch_size = BATCH_SIZE)
 
