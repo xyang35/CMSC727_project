@@ -356,3 +356,34 @@ def pack_longrange(feat, segid, seq_len, num, *others):
     x = np.transpose(x, (1,0,2))
 
     return x, x_others
+
+def prepare_data(data, label, SEQ_LEN):
+    '''
+    data is a list with sentence in each element: [[2,5,3], [6,1]]
+    label s a list with binary label in each element: [0, 1]
+
+    Ignore the sentences with length larger than SEQ_LEN
+    '''
+
+    size = len(data)
+    x = np.zeros((SEQ_LEN, size))
+    mask = np.zeros((SEQ_LEN, size), dtype='float32')
+    y =  np.zeros(size)
+    
+    count = 0
+    for i in range(size):
+        if len(data[i]) < SEQ_LEN:
+            x[-len(data[i]):, count] = data[i]
+            mask[-len(data[i]):, count] = 1
+            y[count] = label[i]
+    
+            count += 1
+    
+    x = x[:count]
+    mask = mask[:count]
+    y = y[:count]
+
+    x = x.astype('int32')
+    y = y.astype('int32')
+
+    return x, mask, y

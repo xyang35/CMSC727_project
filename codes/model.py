@@ -19,16 +19,17 @@ mode = theano.Mode(linker='cvm') #the runtime algo to execute the code is in c
 
 
 class RNN(object):
-    def __init__(self, n_input, n_hidden, n_output, seq_len, cell_type='gru'):
+    def __init__(self, n_input, n_embed, n_hidden, n_output, seq_len, cell_type='gru'):
 
         # model input (no output, unsupervised)
-        self.input = T.ftensor3('input')
+        self.input = T.imatrix('input')
         self.y = T.ivector('y')
 
         self.encode_mask = T.fmatrix('encode_mask')
 
         self.cell_type = cell_type
         self.n_input = n_input
+        self.n_embed = n_embed
         self.seq_len = seq_len
         self.n_hidden = n_hidden
         self.n_output = n_output
@@ -38,11 +39,16 @@ class RNN(object):
         ######################
         print('Building model ...')
 
+        ######### Embedding ############
+        self.embed = layers.EmbeddingLayer(
+                input = self.input, n_input=self.n_input,
+                n_output = self.n_embed)
+
         ########## Encoder ##############
 
         self.encoder = layers.RNNLayer(
-                input=self.input, mask=self.encode_mask,
-                n_input=self.n_input,
+                input=self.embed.out, mask=self.encode_mask,
+                n_input=self.n_embed,
                 n_hidden=self.n_hidden, seq_len=self.seq_len,
                 cell_type=self.cell_type)
 
@@ -64,17 +70,15 @@ class RNN(object):
         self.pred = self.ls.pred
 
 
-    # train model
-    def train(self, train_feat=None, train_mask=None, train_target=None,
-            init_epoch=0, lr=10e-5, batch_size=32, max_epoch=10, optimizer=rmsprop, path=None):
+    # Set training policy
+    def set_train(self, lr=10e-5, batch_size=32, optimizer=rmsprop):
 
         self.lr = lr
-
-        print('Training model ...')
-
+        self.batch_size = batch_size
+        self.optimizer = optimizer
 
         # define symbolic batch input
-        input = T.ftensor3()
+        input = T.imatrix()
         encode_mask = T.fmatrix()
         y = T.ivector()
 
@@ -82,7 +86,7 @@ class RNN(object):
 
         updates = optimizer(self.loss, self.params, lr=lr)
 
-        train_model = theano.function(inputs=[input, encode_mask, y],
+        self.train = theano.function(inputs=[input, encode_mask, y],
                 outputs = self.loss,
                 updates = updates,
                 givens = {self.input: input,
@@ -90,6 +94,14 @@ class RNN(object):
                     self.y: y,
                     self.encoder.h0: h0},
                 mode = mode)
+
+
+
+    # train model (load all data)
+    def train_all(self, train_feat=None, train_mask=None, train_target=None,
+            init_epoch=0, max_epoch=10, path=None):
+
+        print('Training model ...')
 
 #        check_model = theano.function(inputs=[input1, input2, encode_mask, y1, y2, decode_mask],
 #                outputs = [self.ls1.loss, self.ls1.y_pred, self.ls2.y_pred],
@@ -138,7 +150,7 @@ class RNN(object):
             for inputs, encode_m, targets in iterate_minibatches(inputs=train_feat, mask=train_mask, targets=train_target, 
                 batchsize=batch_size, shuffle=True):
 
-                cost += train_model(inputs, encode_m, targets)
+                cost += self.train(inputs, encode_m, targets)
                 count += 1
             cost /= count
         
@@ -176,7 +188,7 @@ class RNN(object):
 
             #     updates = optimizer(self.loss, self.params, lr=lr)
 
-            #     train_model = theano.function(inputs=[input, encode_mask, y, decode_mask],
+            #     train = theano.function(inputs=[input, encode_mask, y, decode_mask],
             #             outputs = self.loss,
             #             updates = updates,
             #             givens = {self.input: input,
@@ -186,18 +198,46 @@ class RNN(object):
             #                 self.encoder.h0: h0},
             #             mode = mode)
 
+    # Train model (for one batch)
+    def train_batch(self, train_feat=None, train_mask=None, train_target=None):
+
+        ##################
+        # Start Training #
+        ##################
+
+        return self.train(train_feat, train_mask, train_target)
+
+    # Evaluate model (for one batch)
+    def eval_batch(self, feat=None, mask=None, target=None):
+
+        # define symbolic batch input
+        input = T.imatrix()
+        encode_mask = T.fmatrix()
+        y = T.ivector()
+
+        h0 = np.zeros((feat.shape[1],self.n_hidden), dtype=theano.config.floatX)
+
+        evaluate = theano.function(inputs=[input, encode_mask, y],
+                outputs = self.loss,
+                givens = {self.input: input,
+                    self.encode_mask: encode_mask,
+                    self.y: y,
+                    self.encoder.h0: h0},
+                mode = mode)
+
+        return evaluate(feat, mask, target)
+
 
     def predict(self, feat=None, mask=None, path=None, batch_size=256):
 
         print('Testing the model ...')
+        # define symbolic batch input
+        input = T.imatrix()
+        encode_mask = T.fmatrix()
+        y = T.ivector()
+        h0 = T.fmatrix()
 
-
-        # define symbolic input
-        input = T.ftensor3()
-        encode_mask = T.matrix()
-        h0 = T.matrix()
-
-        predict = theano.function(inputs=[input, encode_mask, h0],
+        self.predict = theano.function(inputs=[input, encode_mask, h0],
                 outputs = self.pred,
                 givens = {self.input: input,
                     self.encode_mask: encode_mask,
@@ -212,7 +252,7 @@ class RNN(object):
             e = min(feat.shape[1], i+batch_size)
 
             h0_val = np.zeros((e-s,self.n_hidden), dtype=theano.config.floatX)
-            temp_pred = predict(
+            temp_pred = self.predict(
                     feat[:,s:e,:], mask[:,s:e], h0_val)
 
             pred[s:e] = temp_pred

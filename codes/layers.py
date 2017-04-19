@@ -95,6 +95,17 @@ class SoftmaxLayer(object):
 
         self.cost = self.loss + self.lambda_l2 * self.reg      
 
+class EmbeddingLayer(object):
+    def __init__(self, input = None, n_input=10, n_output=10):
+
+        self.n_input = int(n_input)
+        self.n_output = int(n_output)
+
+        self.input = input
+
+        self.W = uniform(n_input, n_output, name='W')
+
+        self.out = self.W[input]
 
 class RNN_cell(object):
     def __init__(self, n_input, n_hidden):
