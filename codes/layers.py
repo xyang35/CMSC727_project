@@ -35,20 +35,22 @@ class RNNLayer(object):
 
         # recurrent
         self.h0 = T.fmatrix('h0')
+        self.c0 = T.fmatrix('c0')
 
-        def recurrent(i_t, m_t, h_tm1):
+        def recurrent(i_t, m_t, h_tm1, c_tm1):
             # broadcast in the second dimension
             m_t = m_t.dimshuffle(0, 'x')
             
             # recurrent layer
-            h_t = self.cell.step(i_t, h_tm1)
+            h_t, c_t = self.cell.step(i_t, h_tm1, c_tm1)
             h_t *= m_t
+            c_t *= m_t
 
-            return h_t
+            return h_t, c_t
 
         self.h, _ = theano.scan(recurrent,
                 sequences = [self.input, self.mask],
-                outputs_info = [self.h0])
+                outputs_info = [self.h0, self.c0])
 
         self.feat = self.h[-1]
 
@@ -121,10 +123,11 @@ class RNN_cell(object):
                 (self.U ** 2).sum())
 
     # feed forward
-    def step(self, i_t, h_tm1):
+    def step(self, i_t, h_tm1, c_tm1):
         h = T.tanh(T.dot(i_t, self.W) + T.dot(h_tm1, self.U) + self.b)
+        c = h
 
-        return h
+        return h, c
 
 
 class GRU_cell(object):
@@ -156,7 +159,7 @@ class GRU_cell(object):
                 (self.U_h ** 2).sum())
 
     # feed forward
-    def step(self, i_t, h_tm1):
+    def step(self, i_t, h_tm1, c_tm1):
         x_z = T.dot(i_t, self.W_z)
         u_z = T.dot(h_tm1, self.U_z)
         z = T.nnet.hard_sigmoid(x_z + u_z + self.b_z)
@@ -171,5 +174,67 @@ class GRU_cell(object):
         can_h = T.tanh(x_h + u_h + self.b_h)
 
         h = (1 - z) * h_tm1 + z * can_h
+        c = h    # for consistent with LSTM
 
-        return h
+        return h, c
+
+class LSTM_cell(object):
+    def __init__(self, n_input, n_hidden):
+
+        # forget gate
+        self.W_f = glorot_uniform(n_input, n_hidden, name='W_f')
+        self.U_f = orthogonal(n_hidden, n_hidden, name='U_f')
+        self.b_f = theano.shared(value = np.ones((n_hidden,), dtype=theano.config.floatX), name = 'b_f')
+
+        # input gate
+        self.W_i = glorot_uniform(n_input, n_hidden, name='W_i')
+        self.U_i = orthogonal(n_hidden, n_hidden, name='U_i')
+        self.b_i = theano.shared(value = np.zeros((n_hidden,), dtype=theano.config.floatX), name = 'b_i')
+
+        # output gate
+        self.W_o = glorot_uniform(n_input, n_hidden, name='W_o')
+        self.U_o = orthogonal(n_hidden, n_hidden, name='U_o')
+        self.b_o = theano.shared(value = np.zeros((n_hidden,), dtype=theano.config.floatX), name = 'b_o')
+
+        # cell
+        self.W_c = glorot_uniform(n_input, n_hidden, name='W_c')
+        self.U_c = orthogonal(n_hidden, n_hidden, name='U_c')
+        self.b_c = theano.shared(value = np.zeros((n_hidden,), dtype=theano.config.floatX), name = 'b_c')
+
+
+        self.params = [self.W_f, self.U_f, self.b_f,
+                self.W_i, self.U_i, self.b_i,
+                self.W_o, self.U_o, self.b_o,
+                self.W_c, self.U_c, self.b_c]
+
+        # L2 regularization
+        self.L2 = 0.5 * ((self.U_z ** 2).sum() + \
+                (self.U_r ** 2).sum() + \
+                (self.U_h ** 2).sum())
+
+    # feed forward
+    def step(self, i_t, h_tm1, c_tm1):
+        # input gate
+        x_i = T.dot(i_t, self.W_i)
+        u_i = T.dot(h_tm1, self.U_i)
+        i = T.nnet.hard_sigmoid(x_i + u_i + self.b_i)
+
+        # forget gate
+        x_f = T.dot(i_t, self.W_f)
+        u_f = T.dot(h_tm1, self.U_f)
+        f = T.nnet.hard_sigmoid(x_f + u_f + self.b_f)
+
+        # cell
+        x_c = T.dot(i_t, self.W_c)
+        u_c = T.dot(h_tm1, self.U_c)
+        c = f * c_tm1 + i * T.tanh(x_c + u_c + self.b_c)
+
+        # output gat
+        x_o = T.dot(i_t, self.W_o)
+        u_o = T.dot(h_tm1, self.U_o)
+        o = T.nnet.hard_sigmoid(x_o + u_o + self.b_o)
+
+        # hidden state
+        h = o * T.tanh(c)
+
+        return h, c

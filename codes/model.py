@@ -83,6 +83,7 @@ class RNN(object):
         y = T.ivector()
 
         h0 = np.zeros((batch_size,self.n_hidden), dtype=theano.config.floatX)
+        c0 = np.zeros((batch_size,self.n_hidden), dtype=theano.config.floatX)
 
         updates = optimizer(self.loss, self.params, self.lr)
 
@@ -92,7 +93,8 @@ class RNN(object):
                 givens = {self.input: input,
                     self.encode_mask: encode_mask,
                     self.y: y,
-                    self.encoder.h0: h0},
+                    self.encoder.h0: h0,
+                    self.encoder.c0: c0},
                 mode = mode)
 
 
@@ -197,13 +199,15 @@ class RNN(object):
         y = T.ivector()
 
         h0 = np.zeros((feat.shape[1],self.n_hidden), dtype=theano.config.floatX)
+        c0 = np.zeros((feat.shape[1],self.n_hidden), dtype=theano.config.floatX)
 
         evaluate = theano.function(inputs=[input, encode_mask, y],
                 outputs = self.loss,
                 givens = {self.input: input,
                     self.encode_mask: encode_mask,
                     self.y: y,
-                    self.encoder.h0: h0},
+                    self.encoder.h0: h0,
+                    self.encoder.c0: c0},
                 mode = mode)
 
         return evaluate(feat, mask, target)
@@ -217,12 +221,14 @@ class RNN(object):
         encode_mask = T.fmatrix()
         y = T.ivector()
         h0 = T.fmatrix()
+        c0 = T.fmatrix()
 
         self.predict = theano.function(inputs=[input, encode_mask, h0],
                 outputs = self.pred,
                 givens = {self.input: input,
                     self.encode_mask: encode_mask,
-                    self.encoder.h0: h0},
+                    self.encoder.h0: h0,
+                    self.encoder.co: c0},
                 mode = mode)
 
         pred = np.zeros((feat.shape[1], self.n_output))
@@ -233,8 +239,9 @@ class RNN(object):
             e = min(feat.shape[1], i+batch_size)
 
             h0_val = np.zeros((e-s,self.n_hidden), dtype=theano.config.floatX)
+            c0_val = np.zeros((e-s,self.n_hidden), dtype=theano.config.floatX)
             temp_pred = self.predict(
-                    feat[:,s:e], mask[:,s:e], h0_val)
+                    feat[:,s:e], mask[:,s:e], h0_val, c0_val)
 
             pred[s:e] = temp_pred
 
