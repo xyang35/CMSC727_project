@@ -48,7 +48,7 @@ class RNNLayer(object):
 
             return h_t, c_t
 
-        self.h, _ = theano.scan(recurrent,
+        (self.h, self.c), _ = theano.scan(recurrent,
                 sequences = [self.input, self.mask],
                 outputs_info = [self.h0, self.c0])
 
@@ -208,9 +208,10 @@ class LSTM_cell(object):
                 self.W_c, self.U_c, self.b_c]
 
         # L2 regularization
-        self.L2 = 0.5 * ((self.U_z ** 2).sum() + \
-                (self.U_r ** 2).sum() + \
-                (self.U_h ** 2).sum())
+        self.L2 = 0.5 * ((self.U_f ** 2).sum() + \
+                (self.U_i ** 2).sum() + \
+                (self.U_o ** 2).sum() + \
+                (self.U_c ** 2).sum())
 
     # feed forward
     def step(self, i_t, h_tm1, c_tm1):
