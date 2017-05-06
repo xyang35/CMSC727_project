@@ -223,12 +223,12 @@ class RNN(object):
         h0 = T.fmatrix()
         c0 = T.fmatrix()
 
-        self.predict = theano.function(inputs=[input, encode_mask, h0],
+        self.predict = theano.function(inputs=[input, encode_mask, h0, c0],
                 outputs = self.pred,
                 givens = {self.input: input,
                     self.encode_mask: encode_mask,
                     self.encoder.h0: h0,
-                    self.encoder.co: c0},
+                    self.encoder.c0: c0},
                 mode = mode)
 
         pred = np.zeros((feat.shape[1], self.n_output))
