@@ -13,7 +13,7 @@ import theano.tensor as T
 from model import RNN
 import utils
 
-
+theano.config.floatX = "float32"
 SEQ_LEN = 200
 N_INPUT = 10000
 N_EMBED = 512
