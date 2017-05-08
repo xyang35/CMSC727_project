@@ -64,7 +64,7 @@ class RNN(object):
 
 
         # combine parameters
-        self.params = self.encoder.params + self.ls.params
+        self.params = self.encoder.params + self.ls.params + self.embed.params
 
         self.loss = self.ls.loss
         self.pred = self.ls.pred
@@ -95,7 +95,7 @@ class RNN(object):
                     self.y: y,
                     self.encoder.h0: h0,
                     self.encoder.c0: c0},
-                mode = mode, allow_input_downcast = True)
+                mode = mode)
 
 
 
@@ -178,7 +178,7 @@ class RNN(object):
 
             # decrease learning rate if diff < 0
             if diff < 0:
-                self.lr.set_value(self.lr.get_value() / 2)
+                self.lr.set_value(self.lr.get_value() / 10)
                 print ("Update learning rate = {}".format(self.lr.get_value()), file=sys.stderr)
 
     # Train model (for one batch)

@@ -109,6 +109,8 @@ class EmbeddingLayer(object):
 
         self.out = self.W[input]
 
+        self.params = [self.W]
+
 class RNN_cell(object):
     def __init__(self, n_input, n_hidden):
 
