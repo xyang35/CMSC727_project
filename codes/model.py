@@ -223,7 +223,7 @@ class RNN(object):
         h0 = T.fmatrix()
         c0 = T.fmatrix()
 
-        self.predict = theano.function(inputs=[input, encode_mask, h0, c0],
+        self.batch_predict = theano.function(inputs=[input, encode_mask, h0, c0],
                 outputs = self.pred,
                 givens = {self.input: input,
                     self.encode_mask: encode_mask,
@@ -240,7 +240,7 @@ class RNN(object):
 
             h0_val = np.zeros((e-s,self.n_hidden), dtype=theano.config.floatX)
             c0_val = np.zeros((e-s,self.n_hidden), dtype=theano.config.floatX)
-            temp_pred = self.predict(
+            temp_pred = self.batch_predict(
                     feat[:,s:e], mask[:,s:e], h0_val, c0_val)
 
             pred[s:e] = temp_pred
